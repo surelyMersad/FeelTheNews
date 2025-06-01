@@ -4,6 +4,11 @@ from pydantic import BaseModel
 from typing import List, Optional
 from app.services.nyt_service import NYTService
 from app.services.sentiment_service import SentimentService
+import logging
+
+# Configure logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 app = FastAPI(title="News Sentiment Analysis API")
 
@@ -20,8 +25,9 @@ app.add_middleware(
 try:
     nyt_service = NYTService()
     sentiment_service = SentimentService()
+    logger.info("Services initialized successfully")
 except Exception as e:
-    print(f"Error initializing services: {e}")
+    logger.error(f"Error initializing services: {e}")
     nyt_service = None
     sentiment_service = None
 
@@ -47,27 +53,44 @@ async def analyze_sentiment(text: str):
     try:
         return sentiment_service.analyze_sentiment(text)
     except Exception as e:
+        logger.error(f"Error in sentiment analysis: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/news")
 async def get_news(keywords: str, begin_date: Optional[str] = None):
     if not nyt_service or not sentiment_service:
+        logger.error("Services not initialized")
         raise HTTPException(status_code=500, detail="Services not initialized")
     
     try:
         # Convert comma-separated keywords to list
         keyword_list = [k.strip() for k in keywords.split(",")]
+        logger.info(f"Fetching news for keywords: {keyword_list}, begin_date: {begin_date}")
         
         # Fetch articles from NYT
         articles = await nyt_service.fetch_articles(keyword_list, begin_date)
+        logger.info(f"Retrieved {len(articles)} articles from NYT")
         
         # Analyze sentiment for each article
         for article in articles:
-            article["sentiment"] = sentiment_service.analyze_sentiment(article["title"])
+            try:
+                article["sentiment"] = sentiment_service.analyze_sentiment(article["title"])
+            except Exception as e:
+                logger.error(f"Error analyzing sentiment for article '{article.get('title', '')}': {str(e)}")
+                article["sentiment"] = {
+                    "sentiment": "neutral",
+                    "confidence": 0,
+                    "scores": {
+                        "positive": 0,
+                        "neutral": 1,
+                        "negative": 0
+                    }
+                }
         
         return articles
         
     except Exception as e:
+        logger.error(f"Error in get_news: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
 
 if __name__ == "__main__":

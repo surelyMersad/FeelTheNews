@@ -58,7 +58,10 @@ class ApiService {
       });
       return response.data;
     } catch (error) {
-      console.error('Error fetching news:', error);
+      if (axios.isAxiosError(error)) {
+        console.error('Error fetching news:', error.response?.data || error.message);
+        throw new Error(error.response?.data?.message || 'Error fetching news');
+      }
       throw error;
     }
   }

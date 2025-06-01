@@ -17,17 +17,20 @@ class NYTService:
         """
         Fetch articles from NYT API based on keywords and optional date filter
         """
-        # Construct query
-        query = " OR ".join(keywords)
+        # Format keywords for exact phrase matching
+        formatted_keywords = [f'"{keyword}"' for keyword in keywords]
+        query = " OR ".join(formatted_keywords)
         
         # Prepare API request parameters
         params = {
             "api-key": self.api_key,
             "q": query,
-            "sort": "newest"
+            "sort": "newest",
+            "fl": "headline,abstract,web_url,pub_date,section_name,subsection_name"  # Fields we want to retrieve
         }
         
         if begin_date:
+            # Convert YYYY-MM-DD to YYYYMMDD format
             params["begin_date"] = begin_date.replace("-", "")
         
         async with httpx.AsyncClient() as client:
@@ -38,15 +41,33 @@ class NYTService:
                 
                 articles = []
                 for article in data.get("response", {}).get("docs", []):
+                    # Extract the main headline
+                    headline = article.get("headline", {}).get("main", "")
+                    
+                    # Skip articles without a headline
+                    if not headline:
+                        continue
+                    
                     article_data = {
-                        "title": article.get("headline", {}).get("main", ""),
+                        "title": headline,
                         "abstract": article.get("abstract", ""),
                         "url": article.get("web_url", ""),
-                        "published_date": article.get("pub_date", "")
+                        "published_date": article.get("pub_date", ""),
+                        "section": article.get("section_name", ""),
+                        "subsection": article.get("subsection_name", "")
                     }
                     articles.append(article_data)
                 
                 return articles
                 
             except httpx.HTTPError as e:
-                raise Exception(f"Error fetching news from NYT API: {str(e)}") 
+                error_msg = f"Error fetching news from NYT API: {str(e)}"
+                if e.response is not None:
+                    error_msg += f" - Status: {e.response.status_code}"
+                    try:
+                        error_data = e.response.json()
+                        if "fault" in error_data:
+                            error_msg += f" - {error_data['fault']['faultstring']}"
+                    except:
+                        pass
+                raise Exception(error_msg) 
