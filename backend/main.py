@@ -5,10 +5,27 @@ from typing import List, Optional
 from app.services.nyt_service import NYTService
 from app.services.sentiment_service import SentimentService
 import logging
+import os
+from dotenv import load_dotenv
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
+# Load environment variables
+logger.info("Loading environment variables...")
+load_dotenv()
+
+# After load_dotenv()
+# print("All environment variables:", dict(os.environ))
+
+nyt_api_key = os.getenv("NYT_API_KEY")
+if nyt_api_key:
+    logger.info("NYT API key found in environment variables")
+else:
+    logger.error("NYT API key not found in environment variables")
+    logger.info(f"Current working directory: {os.getcwd()}")
+    logger.info(f"Files in current directory: {os.listdir('.')}")
 
 app = FastAPI(title="News Sentiment Analysis API")
 
